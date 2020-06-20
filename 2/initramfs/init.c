@@ -5,8 +5,9 @@
 #include "stop.h"
 #include "queue.h"
 
-// Max Number os Semaphores
+// Consts definition
 #define MAX 100
+#define TRUE 1
 
 // Function declarations
 void down(int semaphore_pid, struct Queue* q);
