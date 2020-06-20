@@ -69,12 +69,12 @@ int main() {
 			/* Child Process A */
 			while (true) {
 				if (semaphore_busy == 0) {
-				semaphore_busy = 1;
-				down(semaphore_pid, q);
-				printf("Process A inside critic region in semaphore: %d", semaphore_id);
-				up(semaphore_pid, q);
-				semaphore_busy = 0;
-				printf("Process A outside critic region in semaphore: %d", semaphore_id);
+					semaphore_busy = 1;
+					down(semaphore_pid, q);
+					printf("Process A inside critic region in semaphore: %d", semaphore_id);
+					up(semaphore_pid, q);
+					semaphore_busy = 0;
+					printf("Process A outside critic region in semaphore: %d", semaphore_id);
 				}
 				else {
 					sleep(1);
@@ -85,12 +85,12 @@ int main() {
 			/* Child Process B */
 			while (true) {
 				if (semaphore_busy == 0) {
-				semaphore_busy = 1;
-				down(semaphore_id, q);
-				printf("Process B inside critic region in semaphore: %d", semaphore_id);
-				up(semaphore_id, q);
-				semaphore_busy = 0;
-				printf("Process B outside critic region in semaphore: %d", semaphore_id);
+					semaphore_busy = 1;
+					down(semaphore_id, q);
+					printf("Process B inside critic region in semaphore: %d", semaphore_id);
+					up(semaphore_id, q);
+					semaphore_busy = 0;
+					printf("Process B outside critic region in semaphore: %d", semaphore_id);
 				}
 				else {
 					sleep(1);
