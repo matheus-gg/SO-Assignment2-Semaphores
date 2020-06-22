@@ -6,7 +6,6 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/wait.h>
-#include <linux/delay.h>
 
 #define set_task_state(tsk, state_value)		\
 	do { (tsk)->state = (state_value); smp_mb(); } while (0)
@@ -14,22 +13,18 @@
 DECLARE_WAIT_QUEUE_HEAD(queue);
 wait_queue_t *wait;
 static atomic_t awake = ATOMIC_INIT(0);
-//static atomic_t awake = ATOMIC_INIT(0);
 
 static long stop_process(struct task_struct *p)
-{
-	wait = kmalloc(sizeof(*wait), GFP_KERNEL);
-	if (!wait)
-		return -1;
-		
+{		
+	unsigned long flags;
 	init_wait(wait);
 	wait->private = p;
-	add_wait_queue_exclusive(&queue, wait);
-	prepare_to_wait_exclusive(&queue, wait, TASK_INTERRUPTIBLE);
-	atomic_set(&awake, 0);
-	wait_event_interruptible(queue, atomic_read(&awake));
+	wait->flags |= WQ_FLAG_EXCLUSIVE;
 
-	schedule();
+	spin_lock_irqsave(&queue.lock, flags);
+	__add_wait_queue_tail(&queue, wait);
+	set_task_state(p, TASK_STOPPED);
+	spin_unlock_irqrestore(&queue.lock, flags);
 
 	return 0;
 }
@@ -42,9 +37,7 @@ asmlinkage long sys_stop_process(int pid)
 
 asmlinkage long sys_continue_process(void)
 {
-	usleep_range(1000000, 1000001);
-	atomic_set(&awake, 1);
-	//wake_up_interruptible(&queue);
+	__wake_up(&queue, TASK_STOPPED, 1, NULL);
 	return 0;
 }
 

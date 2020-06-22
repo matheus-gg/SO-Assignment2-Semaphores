@@ -1,4 +1,4 @@
-CC=$(CROSS_COMPILE)gcc -Wall -Wextra -static -pthread -lpthread -g
+CC=$(CROSS_COMPILE)gcc -Wall -Wextra -static -g
 
 $(shell mkdir -p build/initramfs_root)
 

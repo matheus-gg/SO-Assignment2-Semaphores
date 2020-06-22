@@ -3,7 +3,6 @@
 #include <unistd.h>
 
 #include "stop.h"
-#include "queue.h"
 
 // Consts definition
 #define MAX 100
@@ -17,8 +16,6 @@ int init_semaphore(int count);
 // Global Variables
 int mutex = 1;
 int waiting_process;
-int semaphore_id;
-
 
 // Init semaphore
 int init_semaphore(int count) {
@@ -28,91 +25,80 @@ int init_semaphore(int count) {
 
 // Down on semaphore
 void down(int semaphore_pid) {	
-	//printf("In down: semaphore_pid=%d\n", semaphore_pid);
-	//printf("Mutex before down: %d\n", mutex);
 	if (mutex == 0) {
-		//printf("Putting %d in wait queue.\n", semaphore_pid);
 		waiting_process = semaphore_pid;
 		stop_process(semaphore_pid);
-		//printf("Process %d stoped.\n", semaphore_pid);
 	}
 	mutex--;
-	//printf("Mutex after down: %d\n", mutex);
 }
 
 // Up on semaphore
 void up(int semaphore_pid) {
-	//printf("In up: semaphore_pid=%d\n", semaphore_pid);
-	//printf("Mutex before up: %d\n", mutex);
 	mutex++;
-	//printf("Mutex after up: %d\n", mutex);
-	//printf("wait_queue_head: %d\n", waiting_process);
 	if (semaphore_pid == waiting_process) {
-		//printf("Continuing process %d\n", semaphore_pid);
 		continue_process();
 	}
 }
 
 int main() {
 	printf("Entered main.\n");
-	int pid = 0;
-	int parent_pid;
-	int child_pid;
 	int count = 0;
-	int mutex = 1;
 
-	// Grandparent - Parent fork
-	pid = fork();
+	while (TRUE) {
+		int pid = 0;
 
-	if (pid != 0) {
-		/* Grandparent code */
-		printf("Inside Grandparent code.\n");
+		pid = fork();
 
-		parent_pid = getpid();
-		int semaphore_pid = 0;
+		if (pid != 0) {
+			// Grandparent code 
+			printf("Inside Grandparent code.\n");
+			int semaphore_id;
+			while (TRUE) {
+				semaphore_id = init_semaphore(count);
+				printf("New semaphore: semaphore_id = %d\n", semaphore_id);
+				if (semaphore_id == -1) {
+					printf("Can't allocate more memory in Kernel.\n");
+					return -1;
+				} 
+				count++;
+				
+				int semaphore_pid = 0;
 
-		semaphore_pid = fork();
+				semaphore_pid = fork();
 
-		// Grandparent - Child fork
-		while (TRUE) {
-			if(semaphore_pid != 0) {
-				printf("Inside Child A code.\n");
-				/* Child Process A */
+				// Parent - Child fork
 				while (TRUE) {
-					printf("Child A process: semaphore_pid = %d\n", parent_pid);
-					down(parent_pid);
-					printf("Child A process inside critic region in semaphore: %d\n", semaphore_id);
-					sleep(0.5);
-					up(parent_pid);
-					printf("Child A process outside critic region in semaphore: %d\n", semaphore_id);
-				}
-			}
-			else {
-				printf("Inside Child B code.\n");
-				/* Child Process B */
-				child_pid = getpid();
-				while (TRUE) {
-					printf("Child B process: semaphore_pid = %d\n", child_pid);
-					down(child_pid);
-					printf("Child B process inside critic region in semaphore: %d\n", semaphore_id);
-					sleep(0.5);
-					up(child_pid);
-					printf("Child B process outside critic region in semaphore: %d\n", semaphore_id);
+					if(semaphore_pid != 0) {
+						printf("Inside Child A code.\n");
+						/* Child Process A */
+						int parent_pid = getpid();
+						while (TRUE) {
+							printf("Child A process: semaphore_pid = %d\n", parent_pid);
+							down(parent_pid);
+							printf("Child A process (pid=%d) inside critic region.\n", parent_pid);
+							up(parent_pid);
+							printf("Child A process (pid=%d) outside critic region.\n", parent_pid);
+							sleep(0.5);
+						}
+					}
+					else {
+						printf("Inside Child B code.\n");
+						/* Child Process B */
+						int child_pid = getpid();
+						while (TRUE) {
+							printf("Child B process: semaphore_pid = %d\n", child_pid);
+							down(child_pid);
+							printf("Child B process (pid=%d) inside critic region.\n", child_pid);
+							up(child_pid);
+							printf("Child B process (pid=%d) outside critic region.\n", child_pid);
+							sleep(0.5);
+						}
+					}
 				}
 			}
 		}
-	} 
-	else {
-		printf("Inside Parent code.\n");
-		// Parent code 
-		while (TRUE) {
-			semaphore_id = init_semaphore(count);
-			printf("New semaphore: semaphore_id = %d\n", semaphore_id);
-			if (semaphore_id == -1) {
-				printf("Can't allocate more memory in Kernel.\n");
-				return -1;
-			} 
-			count++;
+		else {
+			/* Parent code */
 			sleep(1);
 		}
 	}
