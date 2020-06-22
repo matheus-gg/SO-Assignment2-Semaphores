@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "stop.h"
 #include "queue.h"
@@ -10,13 +11,16 @@
 #define TRUE 1
 
 // Function declarations
-void down(int semaphore_pid, struct Queue* q);
-void up(int semaphore_pid, struct Queue* q);
+void down(int semaphore_pid);
+void up(int semaphore_pid);
 int init_semaphore(int count);
 
-// Global variables
+// ptherad id vector and lock varibale for mutual exclusion on critic region
+pthread_mutex_t lock;
 int mutex = 1;
-int semaphore_busy = 0;
+
+// Global variables
+int count = 0;
 
 // Init semaphore
 int init_semaphore(int count) {
@@ -25,76 +29,94 @@ int init_semaphore(int count) {
 }
 
 // Down on semaphore
-void down(int semaphore_pid, struct Queue* q) {
-	if (mutex == 0) {
-		enQueue(q, semaphore_pid);
+void down(int semaphore_pid) {	
+	printf("Mutex before down: %d\n", mutex);
+	printf("In down.\n");
+	int try = pthread_mutex_lock(&lock);
+	if (try != 0) {
+		printf("Putting %d in wait queue.\n", semaphore_pid);
+		queue_push(semaphore_pid);
 		stop_process(semaphore_pid);
+		printf("Process %d stoped.\n", semaphore_pid);
 	}
 	mutex--;
+	printf("Mutex after down: %d\n", mutex);
 }
 
 // Up on semaphore
-void up(int semaphore_pid, struct Queue* q) {
-	mutex ++;
-	if ((semaphore_pid = deQueue(q))) {
+void up(int semaphore_pid) {
+	printf("In up.\n");
+	printf("Mutex before up: %d\n", mutex);
+	mutex++;
+	printf("Mutex after up: %d\n", mutex);
+	pthread_mutex_unlock(&lock);
+	if ((long)semaphore_pid == queue_look_head()) {
+		printf("Continuing process %d\n", semaphore_pid);
+		long aux = queue_pop();
+		printf("Queue pop: %ld", aux);
 		continue_process();
 	}
 }
 
 int main() {
-	int count = 0;
+	printf("Entered main.\n");
 	int semaphore_id = 0;
 	int pid = 0;
+	int parent_pid;
+	int child_pid;
 
 	// Grandparent - Parent fork
 	pid = fork();
 
 	if (pid != 0) {
+		printf("Inside grandparent code.\n");
 		// Grandparent code 
-		semaphore_id = init_semaphore(count);
-		if (semaphore_id == -1) {
-			printf("Can't allocate more memory in Kernel.");
-			return -1;
-		} 
-		count++;
+		while (TRUE) {
+			semaphore_id = init_semaphore(count);
+			printf("New semaphore: semaphore_id = %d\n", semaphore_id);
+			if (semaphore_id == -1) {
+				printf("Can't allocate more memory in Kernel.\n");
+				return -1;
+			} 
+			count++;
+			sleep(2);
+		}
 	} 
 	else {
 		/* Parent code */
-		struct Queue* q = createQueue();
+		printf("Inside parent code.\n");
+
+		parent_pid = getpid();
 		int semaphore_pid = 0;
 
-		// Parent - Child fork
 		semaphore_pid = fork();
 
-		if(semaphore_pid != 0) {
-			/* Child Process A */
-			while (true) {
-				if (semaphore_busy == 0) {
-					semaphore_busy = 1;
-					down(semaphore_pid, q);
-					printf("Process A inside critic region in semaphore: %d", semaphore_id);
-					up(semaphore_pid, q);
-					semaphore_busy = 0;
-					printf("Process A outside critic region in semaphore: %d", semaphore_id);
+		// Parent - Child fork
+		while (TRUE) {
+			if(semaphore_pid != 0) {
+				printf("Inside Parent code.\n");
+				/* Child Process A */
+				while (TRUE) {
+					printf("Parent process: semaphore_pid = %d\n", parent_pid);
+					down(parent_pid);
+					printf("Parent process inside critic region in semaphore: %d\n", semaphore_id);
+					sleep(0.4);
+					up(parent_pid);
+					printf("Parent process outside critic region in semaphore: %d\n", semaphore_id);
 				}
-				else {
-					sleep(1);
-				} 
 			}
-		}
-		else {
-			/* Child Process B */
-			while (true) {
-				if (semaphore_busy == 0) {
-					semaphore_busy = 1;
-					down(semaphore_id, q);
-					printf("Process B inside critic region in semaphore: %d", semaphore_id);
-					up(semaphore_id, q);
-					semaphore_busy = 0;
-					printf("Process B outside critic region in semaphore: %d", semaphore_id);
-				}
-				else {
-					sleep(1);
+			else {
+				printf("Inside Child code.\n");
+				/* Child Process B */
+				child_pid = getpid();
+				while (TRUE) {
+					sleep(0.5);
+					printf("Child process: semaphore_pid = %d\n", child_pid);
+					down(child_pid);
+					printf("Child process inside critic region in semaphore: %d\n", semaphore_id);
+					sleep(0.4);
+					up(child_pid);
+					printf("Child process outside critic region in semaphore: %d\n", semaphore_id);
 				}
 			}
 		}
